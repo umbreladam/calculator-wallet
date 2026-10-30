@@ -5,8 +5,10 @@ An Android app (Kotlin + Jetpack Compose) that opens as a fully working calculat
 to an air-gapped signer and scanning the signed result back.
 
 ## Features
-- **Disguise**: app label "Calculator", Pixel-style adaptive calculator icon, real calculator (+ − × ÷, %, ±, decimal,
-  C/AC, backspace, chaining, repeated `=`). Default code `21000000`, changeable in Settings. Only a salted
+- **Disguise**: app label "Calculator", Pixel-style adaptive icon, and a Pixel Calculator look-alike (warm Material You
+  browns, circular keys that morph to rounded squares when pressed, pill keys in landscape). It does expression entry with
+  a live result preview, smart `( )`, %, backspace, in-memory history (cleared on lock, plain numbers never recorded), and
+  a scientific panel (inv, rad/deg, √/x², π, e, sin/cos/tan and inverses, ln/eˣ, log/10ˣ, ^, !). Default code `21000000`, changeable in Settings. Only a salted
   PBKDF2-HMAC-SHA256 hash (120k iterations) is stored. Wrong codes are just maths.
 - Always relocks on `onStop` (home, recents, screen off). `FLAG_SECURE` while the wallet is open so screenshots and
   the recents thumbnail stay blank. No notifications.

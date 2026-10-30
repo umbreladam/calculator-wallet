@@ -20,3 +20,4 @@
 - Emulator screenshots, second try: not produced. The box user has no /dev/kvm permission, so the emulator exits straight away.
 - v1.1.1 (versionCode 3): Home % is now a true rolling 24h change (vs the open of the hourly candle 24h ago, refreshed with the 60 s reload; same for Coinbase/Bitstamp fallbacks), not Kraken's 00:00 UTC 'o'. High/low/volume are rolling 24h (ticker h[1]/l[1]/v[1], or hourly candles on fallback).
 - v1.2 (versionCode 4): voice passphrase second factor (code, hold =, speak). `VoicePass` in core holds a salted PBKDF2 hash of the canonical text, with `VoicePassTest`. Not tested on a device: recogniser behaviour, on-device availability and the permission flow.
+- v1.3 (versionCode 5): calculator restyled after a Pixel Calculator (portrait 5x4, landscape 4x5 pills), on a new `ExprCalc` expression engine with `ExprCalcTest`. The old `Calculator` class is kept for its tests. Screenshots: still blocked, because the box user has no /dev/kvm access.
