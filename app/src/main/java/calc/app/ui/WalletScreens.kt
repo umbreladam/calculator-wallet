@@ -1,5 +1,7 @@
 package calc.app.ui
 
+import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -41,8 +43,14 @@ import kotlinx.coroutines.withContext
                 Text("Public server in use — reduced privacy", color = Red, fontSize = 12.sp)
             }
         Box(Modifier.weight(1f).fillMaxSize()) {
-            when (val sc = s.screen) {
-                Screen.Home -> HomeScreen(s)
+            AnimatedContent(s.screen, transitionSpec = {
+                val fwd = s.lastNavForward
+                (slideInHorizontally(tween(260)) { w -> if (fwd) w / 4 else -w / 4 } + fadeIn(tween(260))) togetherWith
+                    (slideOutHorizontally(tween(220)) { w -> if (fwd) -w / 4 else w / 4 } + fadeOut(tween(180)))
+            }, label = "nav") { sc -> when (sc) {
+                Screen.Home -> MarketHome(s)
+                Screen.Wallets -> WalletsScreen(s)
+                is Screen.History -> HistoryScreen(s, sc.id)
                 is Screen.Wallet -> WalletDetail(s, sc.id)
                 is Screen.Tx -> TxDetail(s, sc.id, sc.txid)
                 is Screen.Receive -> ReceiveScreen(s, sc.id)
@@ -50,7 +58,7 @@ import kotlinx.coroutines.withContext
                 is Screen.Info -> WalletInfo(s, sc.id)
                 Screen.Import -> ImportScreen(s)
                 Screen.Settings -> SettingsScreen(s)
-            }
+            } }
         }
         }
     }
@@ -66,9 +74,9 @@ import kotlinx.coroutines.withContext
 
 @Composable fun HideButton(s: AppState) = IconButton(onClick = { s.toggleHide() }) { Icon(if (s.hide) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility, "Hide amounts") }
 
-@Composable fun HomeScreen(s: AppState) {
+@Composable fun WalletsScreen(s: AppState) {
     Column(Modifier.fillMaxSize()) {
-        TopBar("Vault", null) {
+        TopBar("Wallets", { s.back() }) {
             HideButton(s)
             IconButton(onClick = { s.syncAll() }) { Icon(Icons.Outlined.Sync, "Sync") }
             IconButton(onClick = { s.go(Screen.Settings) }) { Icon(Icons.Outlined.Settings, "Settings") }
@@ -131,25 +139,46 @@ import kotlinx.coroutines.withContext
         TopBar(w.name, { s.back() }) {
             HideButton(s)
             IconButton(onClick = { s.sync(id) }) { if (v.syncing) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = Orange) else Icon(Icons.Outlined.Sync, "Sync") }
-            IconButton(onClick = { s.go(Screen.Info(id)) }) { Icon(Icons.Outlined.Info, "Wallet info") }
+            IconButton(onClick = { s.go(Screen.Info(id)) }) { Icon(Icons.Outlined.Settings, "Wallet settings") }
+        }
+        Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+            Column(Modifier.fillMaxWidth().weight(1f).background(Surface1, RoundedCornerShape(28.dp)).clickable { s.go(Screen.History(id)) }.padding(20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                Pill(w.kind + if (w.network != "BITCOIN") " · ${w.network.lowercase()}" else "", Muted)
+                Spacer(Modifier.height(14.dp))
+                Text(Fmt.btc(v.total, s.hide, s.sats), fontSize = 36.sp, fontWeight = FontWeight.Bold, fontFamily = Mono, maxLines = 1)
+                Fmt.gbp(v.total, s.price, s.hide)?.let { Text(it, color = Muted, fontSize = 16.sp) }
+                if (v.pending != 0L) Text("Pending: " + Fmt.btc(v.pending, s.hide, s.sats), color = Orange, fontSize = 13.sp)
+                Spacer(Modifier.height(14.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Outlined.History, null, tint = Orange, modifier = Modifier.size(16.dp)); Spacer(Modifier.width(6.dp))
+                    Text("Transaction history (${v.txs.size})", color = Orange, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                }
+                v.error?.let { Spacer(Modifier.height(10.dp)); WarnBox(it, Red) }
+                if (!v.synced && !v.syncing && v.error == null) { Spacer(Modifier.height(8.dp)); Text("Showing cached data · tap sync", color = Muted, fontSize = 12.sp) }
+            }
+            Spacer(Modifier.height(16.dp))
+            Button(onClick = { s.go(Screen.Send(id)) }, Modifier.fillMaxWidth().height(84.dp), shape = RoundedCornerShape(24.dp)) {
+                Icon(Icons.Filled.NorthEast, null, Modifier.size(26.dp)); Spacer(Modifier.width(10.dp)); Text("Send", fontSize = 22.sp, fontWeight = FontWeight.Bold) }
+            Spacer(Modifier.height(12.dp))
+            Button(onClick = { s.go(Screen.Receive(id)) }, Modifier.fillMaxWidth().height(84.dp), shape = RoundedCornerShape(24.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Surface2, contentColor = Orange)) {
+                Icon(Icons.Filled.SouthWest, null, Modifier.size(26.dp)); Spacer(Modifier.width(10.dp)); Text("Receive", fontSize = 22.sp, fontWeight = FontWeight.Bold) }
+            Spacer(Modifier.height(20.dp))
+        }
+    }
+}
+
+@Composable fun HistoryScreen(s: AppState, id: String) {
+    val w = s.meta(id) ?: return
+    val v = s.view(id)
+    Column(Modifier.fillMaxSize()) {
+        TopBar("Transactions · ${w.name}", { s.back() }) {
+            HideButton(s)
+            IconButton(onClick = { s.sync(id) }) { if (v.syncing) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = Orange) else Icon(Icons.Outlined.Sync, "Sync") }
         }
         LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            item {
-                Card {
-                    Text(w.kind, color = Muted, fontSize = 13.sp)
-                    Text(Fmt.btc(v.total, s.hide, s.sats), fontSize = 32.sp, fontWeight = FontWeight.Bold, fontFamily = Mono, modifier = Modifier.clickable { s.toggleHide() })
-                    Fmt.gbp(v.total, s.price, s.hide)?.let { Text(it, color = Muted) }
-                    if (v.pending != 0L) Text("Pending: " + Fmt.btc(v.pending, s.hide, s.sats), color = Orange, fontSize = 13.sp)
-                    Spacer(Modifier.height(14.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Button(onClick = { s.go(Screen.Receive(id)) }, Modifier.weight(1f).height(52.dp), shape = RoundedCornerShape(16.dp)) { Icon(Icons.Filled.CallReceived, null); Spacer(Modifier.width(6.dp)); Text("Receive") }
-                        Button(onClick = { s.go(Screen.Send(id)) }, Modifier.weight(1f).height(52.dp), shape = RoundedCornerShape(16.dp)) { Icon(Icons.Filled.CallMade, null); Spacer(Modifier.width(6.dp)); Text("Send") }
-                    }
-                }
-                v.error?.let { Spacer(Modifier.height(8.dp)); WarnBox(it, Red) }
-                if (!v.synced && !v.syncing && v.error == null) { Spacer(Modifier.height(8.dp)); Text("Showing cached data · tap sync", color = Muted, fontSize = 12.sp) }
-                SectionLabel("Transactions")
-            }
+            v.error?.let { item { WarnBox(it, Red) } }
             if (v.txs.isEmpty()) item { Text(if (v.syncing) "Syncing…" else "No transactions yet", color = Muted, modifier = Modifier.padding(16.dp)) }
             items(v.txs, key = { it.txid }) { t -> TxRow(s, t, v.tip) { s.go(Screen.Tx(id, t.txid)) } }
             item { Spacer(Modifier.height(24.dp)) }
@@ -255,7 +284,7 @@ import kotlinx.coroutines.withContext
     var confirmDelete by remember { mutableStateOf(false) }
     var showQr by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize()) {
-        TopBar("Wallet info", { s.back() })
+        TopBar("Wallet settings", { s.back() })
         Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp)) {
             Card {
                 OutlinedTextField(name, { name = it }, label = { Text("Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
@@ -265,6 +294,7 @@ import kotlinx.coroutines.withContext
             Spacer(Modifier.height(12.dp))
             Card {
                 KV("Type", w.kind); KV("Network", w.network.lowercase())
+                Regex("\\[([0-9a-fA-F]{8})").findAll(w.external).map { it.groupValues[1].lowercase() }.distinct().toList().takeIf { it.isNotEmpty() }?.let { KV("Master fingerprint" + if (it.size > 1) "s" else "", it.joinToString(", "), mono = true, copy = true) }
                 KV("Receive descriptor (tap to copy)", w.external, mono = true, copy = true)
                 KV("Change descriptor (tap to copy)", w.internal, mono = true, copy = true)
                 TextButton(onClick = { showQr = !showQr }) { Text(if (showQr) "Hide QR" else "Show descriptor QR") }

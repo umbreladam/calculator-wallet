@@ -9,6 +9,8 @@ import kotlinx.coroutines.withContext
 
 sealed class Screen {
     object Home : Screen()
+    object Wallets : Screen()
+    data class History(val id: String) : Screen()
     data class Wallet(val id: String) : Screen()
     data class Tx(val id: String, val txid: String) : Screen()
     data class Receive(val id: String) : Screen()
@@ -32,15 +34,38 @@ class AppState(val repo: Repo, val scope: CoroutineScope, val onLock: () -> Unit
     var hide by mutableStateOf(repo.settings.hideAmounts)
     var sats by mutableStateOf(repo.settings.sats)
     var price by mutableStateOf<Double?>(null)
+    var market by mutableStateOf(repo.settings.marketData)
+    var tf by mutableStateOf(Timeframe.M15)
+    var candles by mutableStateOf<List<Candle>>(emptyList())
+    var ticker by mutableStateOf<Ticker?>(null)
+    var marketSource by mutableStateOf<String?>(null)
+    var marketError by mutableStateOf<String?>(null)
+    fun setMarketEnabled(on: Boolean) { market = on; repo.settings.marketData = on; if (!on) { candles = emptyList(); ticker = null } }
+
+    /** Runs while the Home screen is visible: candles on start/timeframe change and every 60 s, ticker every ~10 s. */
+    suspend fun marketLoop(tf: Timeframe) {
+        candles = emptyList(); marketError = null
+        var lastFull = 0L
+        while (market) {
+            val now = System.currentTimeMillis()
+            if (now - lastFull > 60_000 || candles.isEmpty()) {
+                try { val (src, c) = repo.candles(tf); candles = c.takeLast(240); marketSource = src; marketError = null; lastFull = now }
+                catch (e: Exception) { marketError = "Price unavailable (" + friendly(e) + ")" }
+            }
+            repo.ticker()?.let { t -> ticker = t; if (candles.isNotEmpty()) candles = Market.withLive(candles, t.last, now / 1000, tf.seconds) }
+            kotlinx.coroutines.delay(10_000)
+        }
+    }
     var toast by mutableStateOf<String?>(null)
     var configured by mutableStateOf(repo.settings.configured())
     var publicServer by mutableStateOf(repo.settings.isPublicActive())
 
     init { refreshPrice(); wallets.forEach { loadLocal(it) } }
 
-    fun go(s: Screen) { stack.add(s) }
-    fun back(): Boolean { if (stack.size > 1) { stack.removeAt(stack.size - 1); return true }; return false }
-    fun home() { while (stack.size > 1) stack.removeAt(stack.size - 1) }
+    var lastNavForward = true
+    fun go(s: Screen) { lastNavForward = true; stack.add(s) }
+    fun back(): Boolean { if (stack.size > 1) { lastNavForward = false; stack.removeAt(stack.size - 1); return true }; return false }
+    fun home() { lastNavForward = false; while (stack.size > 1) stack.removeAt(stack.size - 1) }
     fun meta(id: String) = wallets.firstOrNull { it.id == id }
     fun view(id: String) = views[id] ?: WalletView()
 
@@ -81,7 +106,7 @@ class AppState(val repo: Repo, val scope: CoroutineScope, val onLock: () -> Unit
         val m = repo.add(c, name, network); wallets.add(m); loadLocal(m); return m
     }
     fun rename(id: String, name: String) { repo.rename(id, name); val i = wallets.indexOfFirst { it.id == id }; if (i >= 0) wallets[i] = wallets[i].copy(name = name) }
-    fun delete(id: String) { repo.delete(id); wallets.removeAll { it.id == id }; views.remove(id); home() }
+    fun delete(id: String) { repo.delete(id); wallets.removeAll { it.id == id }; views.remove(id); home(); go(Screen.Wallets) }
 
     companion object {
         fun friendly(e: Throwable): String {

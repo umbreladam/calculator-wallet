@@ -64,6 +64,7 @@ class Settings(ctx: Context) : CodeLock.Store {
     var validateTls get() = p.getBoolean("srv.tlsv", false); set(v) = p.edit().putBoolean("srv.tlsv", v).apply()
     var proxy get() = p.getString("srv.proxy", "")!!; set(v) = p.edit().putString("srv.proxy", v).apply()
     var fiat get() = p.getBoolean("ui.fiat", false); set(v) = p.edit().putBoolean("ui.fiat", v).apply()
+    var marketData get() = p.getBoolean("ui.market", true); set(v) = p.edit().putBoolean("ui.market", v).apply()
     var hideAmounts get() = p.getBoolean("ui.hide", false); set(v) = p.edit().putBoolean("ui.hide", v).apply()
     var sats get() = p.getBoolean("ui.sats", false); set(v) = p.edit().putBoolean("ui.sats", v).apply()
     var usePublic get() = p.getBoolean("srv.public", false); set(v) = p.edit().putBoolean("srv.public", v).apply()
@@ -120,4 +121,25 @@ class Repo(private val ctx: Context) {
             c.inputStream.bufferedReader().use { JSONObject(it.readText()).getDouble("GBP") }
         } catch (e: Exception) { null }
     }
+
+    /** Public market-data GET only (no wallet data). Goes through the SOCKS proxy when configured. */
+    fun httpGet(url: String): String {
+        val px = settings.proxy.trim()
+        val proxy = if (px.contains(":")) Proxy(Proxy.Type.SOCKS, InetSocketAddress.createUnresolved(px.substringBeforeLast(":"), px.substringAfterLast(":").toInt())) else Proxy.NO_PROXY
+        val c = URL(url).openConnection(proxy) as HttpURLConnection
+        c.connectTimeout = 12000; c.readTimeout = 12000; c.setRequestProperty("User-Agent", "Mozilla/5.0"); c.useCaches = false
+        try { if (c.responseCode !in 200..299) throw java.io.IOException("HTTP ${c.responseCode}"); return c.inputStream.bufferedReader().use { it.readText() } } finally { c.disconnect() }
+    }
+
+    /** Candles for [tf]: Kraken first, then Coinbase, then Bitstamp. Returns (source, candles). */
+    suspend fun candles(tf: Timeframe): Pair<String, List<Candle>> = withContext(Dispatchers.IO) {
+        try { val c = Market.parseKrakenOhlc(httpGet(Market.krakenOhlcUrl(tf)))
+            return@withContext "Kraken" to (if (tf.group > 1) Market.aggregate(c, tf.seconds) else c) } catch (e: Exception) { }
+        try { Market.coinbaseUrl(tf)?.let { u -> val c = Market.parseCoinbase(httpGet(u))
+            return@withContext "Coinbase" to c } } catch (e: Exception) { }
+        val c = Market.parseBitstamp(httpGet(Market.bitstampUrl(tf)))
+        "Bitstamp" to (if (tf == Timeframe.H8 || tf == Timeframe.W1) Market.aggregate(c, tf.seconds) else c)
+    }
+
+    suspend fun ticker(): Ticker? = withContext(Dispatchers.IO) { try { Market.parseKrakenTicker(httpGet(Market.KRAKEN_TICKER)) } catch (e: Exception) { null } }
 }

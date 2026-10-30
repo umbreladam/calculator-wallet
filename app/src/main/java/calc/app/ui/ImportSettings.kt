@@ -219,6 +219,8 @@ import org.bitcoindevkit.Network
             Card {
                 Toggle("Hide amounts", s.hide) { s.toggleHide() }
                 Toggle("Show amounts in sats", satsUnit) { satsUnit = it; st.sats = it; s.sats = it }
+                Toggle("Live BTC/USD price chart on home", s.market) { s.setMarketEnabled(it) }
+                Text(if (s.market) "Fetches public market data only (Kraken, falling back to Coinbase / Bitstamp) about every 10 s while the home screen is open. No wallet data is sent; your IP is visible to the exchange (use the SOCKS proxy to hide it)." else "Off: no market data is fetched and the chart is hidden.", color = Muted, fontSize = 12.sp)
                 Toggle("Show GBP value (fetches price from mempool.space)", fiat) { fiat = it; st.fiat = it; s.refreshPrice() }
                 if (fiat) Text("Price requests reveal your IP to mempool.space (via the SOCKS proxy if set). No addresses are sent.", color = Muted, fontSize = 12.sp)
             }

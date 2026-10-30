@@ -15,3 +15,6 @@
 - Server: no default. You choose your own server or a public one (after confirming a warning); a banner shows while a public server is active.
 - Emulator screenshots: not produced. The AVD (API 34 x86_64, swiftshader) never got to adbd within about 15 min on this box.
 - Not tested on a device yet: camera scanning, live Electrum sync/broadcast, Keystore encryption.
+- v1.1 (versionCode 2): new Home with a live Kraken BTC/USD candle chart (Coinbase/Bitstamp fallback, toggle in Settings),
+  Wallets list, and a Wallet screen with big balance (taps through to history), Send/Receive and wallet settings. `MarketTest` covers the parsing, 8h aggregation and live updates.
+- Emulator screenshots, second try: not produced. The box user has no /dev/kvm permission, so the emulator exits straight away.
