@@ -65,6 +65,8 @@ class Settings(ctx: Context) : CodeLock.Store {
     var proxy get() = p.getString("srv.proxy", "")!!; set(v) = p.edit().putString("srv.proxy", v).apply()
     var fiat get() = p.getBoolean("ui.fiat", false); set(v) = p.edit().putBoolean("ui.fiat", v).apply()
     var marketData get() = p.getBoolean("ui.market", true); set(v) = p.edit().putBoolean("ui.market", v).apply()
+    /** Voice passphrase required as a second factor (default on). */
+    var voiceRequired get() = p.getBoolean("voice.on", true); set(v) = p.edit().putBoolean("voice.on", v).apply()
     var hideAmounts get() = p.getBoolean("ui.hide", false); set(v) = p.edit().putBoolean("ui.hide", v).apply()
     var sats get() = p.getBoolean("ui.sats", false); set(v) = p.edit().putBoolean("ui.sats", v).apply()
     var usePublic get() = p.getBoolean("srv.public", false); set(v) = p.edit().putBoolean("srv.public", v).apply()
@@ -86,6 +88,7 @@ class Settings(ctx: Context) : CodeLock.Store {
 class Repo(private val ctx: Context) {
     val settings = Settings(ctx)
     val lock = CodeLock(settings)
+    val voice = VoicePass(settings)
     private val engines = HashMap<String, WalletEngine>()
     private val dir = File(ctx.noBackupFilesDir, "w").apply { mkdirs() }
 

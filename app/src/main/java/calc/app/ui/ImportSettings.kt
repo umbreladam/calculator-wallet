@@ -226,7 +226,7 @@ import org.bitcoindevkit.Network
             }
             SectionLabel("Secret code")
             Card {
-                Text("Type the code on the calculator and press = to open the vault.", color = Muted, fontSize = 13.sp)
+                Text(if (st.voiceRequired) "Type the code on the calculator, then hold = and say the passphrase." else "Type the code on the calculator and press = to open the vault.", color = Muted, fontSize = 13.sp)
                 OutlinedTextField(code1, { code1 = it.filter(Char::isDigit).take(15) }, label = { Text("New code (4–15 digits)") }, singleLine = true, visualTransformation = PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword), modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(code2, { code2 = it.filter(Char::isDigit).take(15) }, label = { Text("Repeat new code") }, singleLine = true, visualTransformation = PasswordVisualTransformation(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword), modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(8.dp))
@@ -238,6 +238,28 @@ import org.bitcoindevkit.Network
                     }
                 }) { Text("Change code") }
                 codeMsg?.let { Text(it, color = if (it.startsWith("✓")) Green else Red, modifier = Modifier.padding(top = 6.dp)) }
+            }
+            SectionLabel("Voice passphrase")
+            Card {
+                var voiceOn by remember { mutableStateOf(st.voiceRequired) }
+                var ph1 by remember { mutableStateOf("") }; var ph2 by remember { mutableStateOf("") }
+                var phMsg by remember { mutableStateOf<String?>(null) }
+                Toggle("Require spoken passphrase", voiceOn) { voiceOn = it; st.voiceRequired = it }
+                Text(if (voiceOn) "Type the code, then press and hold = and say your passphrase; let go to open. A quick tap of = just does maths. Recognition runs on-device where available; audio and text are never stored or sent by this app, and only a salted hash of the passphrase is kept."
+                     else "Off: the code plus a tap of = opens the vault (code only).", color = Muted, fontSize = 12.sp)
+                if (voiceOn) {
+                    OutlinedTextField(ph1, { ph1 = it }, label = { Text("New passphrase") }, singleLine = true, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(ph2, { ph2 = it }, label = { Text("Repeat passphrase") }, singleLine = true, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
+                    Spacer(Modifier.height(8.dp))
+                    Button(onClick = {
+                        when {
+                            !VoicePass.isValidPhrase(ph1) -> phMsg = "Use at least ${VoicePass.MIN_CHARS} letters (two or more words work best)"
+                            VoicePass.canonical(ph1) != VoicePass.canonical(ph2) -> phMsg = "Passphrases don't match"
+                            else -> { val p = ph1; scope.launch { withContext(Dispatchers.Default) { s.repo.voice.setPhrase(p) }; ph1 = ""; ph2 = ""; phMsg = "✓ Passphrase changed" } }
+                        }
+                    }) { Text("Change passphrase") }
+                    phMsg?.let { Text(it, color = if (it.startsWith("✓")) Green else Red, modifier = Modifier.padding(top = 6.dp)) }
+                }
             }
             SectionLabel("About")
             Card {

@@ -1,7 +1,7 @@
 # Calculator — a watch-only Bitcoin wallet disguised as a calculator
 
-An Android app (Kotlin + Jetpack Compose) that opens as a fully working calculator. Typing a secret code and pressing
-`=` opens a **watch-only** Bitcoin wallet. It never handles seeds or private keys; spending happens by exporting a PSBT
+An Android app (Kotlin + Jetpack Compose) that opens as a fully working calculator. Typing a secret code, then holding
+`=` and saying a passphrase, opens a **watch-only** Bitcoin wallet. It never handles seeds or private keys; spending happens by exporting a PSBT
 to an air-gapped signer and scanning the signed result back.
 
 ## Features
@@ -27,6 +27,18 @@ to an air-gapped signer and scanning the signed result back.
   and a banner stays on screen while it is in use. Optional SOCKS5 (Tor/Orbot).
 - Dark Material 3 UI with Bitcoin-orange accents and a hide-amounts toggle.
 
+## Unlocking (code + voice)
+- Type the code (default `21000000`), then **press and hold `=`** and say the passphrase (default "Satoshi Nakamoto");
+  let go to finish. A quick tap of `=` always just does maths, even on the code. A subtle haptic tick is the only sign
+  that it is listening.
+- Matching ignores case, punctuation, accents and spaces ("satoshi naka moto" works), checks every n-best alternative
+  and partial result, and tolerates up to two filler words at either end. Only a salted PBKDF2 hash of the normalised
+  passphrase is stored. Audio and transcripts are never logged, stored or sent by the app.
+- Recognition: on Android 12+ the on-device recogniser is used when available; otherwise the default recogniser with
+  `EXTRA_PREFER_OFFLINE`. Whether that stays offline is up to the recogniser app.
+- The microphone permission is asked for the first time the correct code is held. Without it the wallet cannot open by
+  voice. Settings can change the passphrase or turn voice off (code + `=` only).
+
 ## Screens
 - **Home** (after the code): live BTC/USD price, 24h change, high/low/volume, and a Canvas candlestick chart (Line, 1m,
   15m, 8h, 1d, 1w) with volume bars, MA5/MA10, high/low markers, a dashed last-price line and a press-and-drag crosshair.
@@ -39,7 +51,7 @@ to an air-gapped signer and scanning the signed result back.
 
 ## Privacy model
 - No analytics, no Google Play services, no ML Kit (scanning uses CameraX + ZXing). Permissions: `INTERNET`
-  (Electrum, and the optional market data, which never includes wallet data) and `CAMERA`.
+  (Electrum, and the optional market data, which never includes wallet data), `CAMERA` and `RECORD_AUDIO` (voice passphrase).
 - The wallet list (descriptors) is encrypted with AES-GCM using a non-exportable Android Keystore key. BDK's SQLite
   cache lives in `noBackupFilesDir`, and backups are disabled.
 - A phone that sees your xpub can work out your whole history, so use your own node.

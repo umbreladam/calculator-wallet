@@ -12,8 +12,8 @@ android {
         applicationId = "com.simple.calculator"
         minSdk = 26
         targetSdk = 34
-        versionCode = 3
-        versionName = "1.1.1"
+        versionCode = 4
+        versionName = "1.2"
         buildConfigField("boolean", "ALLOW_SCREENSHOTS", (project.findProperty("allowScreenshots") ?: "false").toString())
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64") }
     }

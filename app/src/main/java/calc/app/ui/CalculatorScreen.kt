@@ -24,14 +24,27 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.ui.input.pointer.pointerInput
 import calc.core.Calculator
 
 private val KeyNum = Color(0xFF2A2A2E)
 private val KeyFn = Color(0xFF4B4B52)
 private val KeyOp = Color(0xFFFF9F0A)
 
-/** A plain-looking calculator. [onEquals] is given the secret-code candidate (if any) after '=' is evaluated. */
-@Composable fun CalculatorScreen(onSecret: (String) -> Unit) {
+/** Hooks for the '=' key. A press reports the secret-code candidate; a hold (≥ [HOLD_MS]) and the release follow. */
+interface EqualsHooks {
+    fun onPress(candidate: String?)
+    /** Returns true if listening started (a subtle haptic tick is given). */
+    fun onHold(): Boolean
+    fun onRelease(held: Boolean)
+}
+const val HOLD_MS = 450L
+
+/** A plain-looking calculator. '=' always evaluates on release; [hooks] decide whether anything else happens. */
+@Composable fun CalculatorScreen(hooks: EqualsHooks) {
     val calc = remember { Calculator() }
     var tick by remember { mutableIntStateOf(0) }
     val haptic = LocalHapticFeedback.current
@@ -53,14 +66,17 @@ private val KeyOp = Color(0xFFFF9F0A)
             listOf(Triple("4", KeyNum) { act { digit('4') } }, Triple("5", KeyNum) { act { digit('5') } }, Triple("6", KeyNum) { act { digit('6') } }, Triple("−", KeyOp) { act { op(Calculator.Op.SUB) } }),
             listOf(Triple("1", KeyNum) { act { digit('1') } }, Triple("2", KeyNum) { act { digit('2') } }, Triple("3", KeyNum) { act { digit('3') } }, Triple("+", KeyOp) { act { op(Calculator.Op.ADD) } }),
             listOf(Triple("⌫", KeyNum) { act { backspace() } }, Triple("0", KeyNum) { act { digit('0') } }, Triple(".", KeyNum) { act { dot() } },
-                Triple("=", KeyOp) { val cand = calc.secretCandidate(); act { equals() }; if (cand != null) onSecret(cand) }),
+                Triple("=", KeyOp) { act { equals() } }),
         )
         key(tick) {
             rows.forEach { row ->
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     row.forEach { (label, color, onClick) ->
                         val selected = color == KeyOp && label != "=" && op?.sym == label
-                        CalcKey(label, if (selected) Color.White else color, if (selected) KeyOp else Color.White, Modifier.weight(1f), onClick)
+                        if (label == "=") EqKey(Modifier.weight(1f), onPress = { hooks.onPress(calc.secretCandidate()) },
+                            onHold = { if (hooks.onHold()) haptic.performHapticFeedback(HapticFeedbackType.LongPress) },
+                            onRelease = { held -> onClick(); hooks.onRelease(held) })
+                        else CalcKey(label, if (selected) Color.White else color, if (selected) KeyOp else Color.White, Modifier.weight(1f), onClick)
                     }
                 }
                 Spacer(Modifier.height(12.dp))
@@ -87,5 +103,24 @@ private fun pretty(d: String): String {
         .clickable(interactionSource = src, indication = null, onClick = onClick), contentAlignment = Alignment.Center) {
         if (label == "⌫") Icon(Icons.AutoMirrored.Outlined.Backspace, "delete", tint = fg, modifier = Modifier.size(28.dp))
         else Text(label, color = fg, fontSize = if (label.length > 1) 28.sp else 36.sp, fontWeight = FontWeight.Normal)
+    }
+}
+
+/** '=' looks and animates like any key, but reports press / hold / release. Cancelled gestures count as a release. */
+@Composable private fun EqKey(modifier: Modifier, onPress: () -> Unit, onHold: () -> Unit, onRelease: (Boolean) -> Unit) {
+    var pressed by remember { mutableStateOf(false) }
+    val s by animateFloatAsState(if (pressed) 0.94f else 1f, label = "k")
+    val press by rememberUpdatedState(onPress); val hold by rememberUpdatedState(onHold); val rel by rememberUpdatedState(onRelease)
+    Box(modifier.aspectRatio(1f).scale(s).clip(CircleShape).background(if (pressed) KeyOp.copy(alpha = 0.7f) else KeyOp)
+        .pointerInput(Unit) {
+            awaitEachGesture {
+                awaitFirstDown(); pressed = true; press()
+                var held = false
+                val up = withTimeoutOrNull(HOLD_MS) { waitForUpOrCancellation() }
+                if (up == null && currentEvent.changes.any { it.pressed }) { held = true; hold(); waitForUpOrCancellation() }
+                pressed = false; rel(held)
+            }
+        }, contentAlignment = Alignment.Center) {
+        Text("=", color = Color.White, fontSize = 36.sp, fontWeight = FontWeight.Normal)
     }
 }
