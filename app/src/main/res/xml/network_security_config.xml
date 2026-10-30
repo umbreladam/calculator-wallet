@@ -1,0 +1,3 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Electrum uses raw TCP/TLS sockets (not affected). Only the optional, off-by-default price fetch uses HTTPS. -->
+<network-security-config><base-config cleartextTrafficPermitted="false" /></network-security-config>

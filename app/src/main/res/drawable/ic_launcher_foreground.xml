@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 2x2 operator grid like the Pixel Calculator icon -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="#FF005143" android:pathData="M27,40a13,13 0,1 0,26 0a13,13 0,1 0,-26 0z"/>
+    <path android:fillColor="#FF005143" android:pathData="M55,40a13,13 0,1 0,26 0a13,13 0,1 0,-26 0z"/>
+    <path android:fillColor="#FF005143" android:pathData="M27,68a13,13 0,1 0,26 0a13,13 0,1 0,-26 0z"/>
+    <path android:fillColor="#FF4CCB78" android:pathData="M55,68a13,13 0,1 0,26 0a13,13 0,1 0,-26 0z"/>
+    <!-- minus -->
+    <path android:fillColor="#FFFFFFFF" android:pathData="M34,38.4h12a1.6,1.6 0,0 1,0 3.2h-12a1.6,1.6 0,0 1,0 -3.2z"/>
+    <!-- times -->
+    <path android:strokeColor="#FFA8E6BA" android:strokeWidth="3.2" android:strokeLineCap="round" android:pathData="M63.5,35.5L72.5,44.5M72.5,35.5L63.5,44.5"/>
+    <!-- plus -->
+    <path android:strokeColor="#FFFFFFFF" android:strokeWidth="3.2" android:strokeLineCap="round" android:pathData="M34,68h12M40,62v12"/>
+    <!-- equals -->
+    <path android:strokeColor="#FF005143" android:strokeWidth="3.2" android:strokeLineCap="round" android:pathData="M62.5,64.5h11M62.5,71.5h11"/>
+</vector>
