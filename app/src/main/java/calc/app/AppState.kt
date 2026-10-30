@@ -46,13 +46,17 @@ class AppState(val repo: Repo, val scope: CoroutineScope, val onLock: () -> Unit
     suspend fun marketLoop(tf: Timeframe) {
         candles = emptyList(); marketError = null
         var lastFull = 0L
+        var hourly = emptyList<Candle>()
         while (market) {
             val now = System.currentTimeMillis()
             if (now - lastFull > 60_000 || candles.isEmpty()) {
                 try { val (src, c) = repo.candles(tf); candles = c.takeLast(240); marketSource = src; marketError = null; lastFull = now }
                 catch (e: Exception) { marketError = "Price unavailable (" + friendly(e) + ")" }
+                hourly = repo.hourly()
             }
-            repo.ticker()?.let { t -> ticker = t; if (candles.isNotEmpty()) candles = Market.withLive(candles, t.last, now / 1000, tf.seconds) }
+            val t = repo.ticker()?.copy(ref24 = Market.ref24(hourly, now / 1000))
+                ?: candles.lastOrNull()?.let { Market.rolling24(hourly, now / 1000, it.c) }
+            if (t != null) { ticker = t; if (candles.isNotEmpty()) candles = Market.withLive(candles, t.last, now / 1000, tf.seconds) }
             kotlinx.coroutines.delay(10_000)
         }
     }

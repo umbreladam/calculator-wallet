@@ -141,5 +141,12 @@ class Repo(private val ctx: Context) {
         "Bitstamp" to (if (tf == Timeframe.H8 || tf == Timeframe.W1) Market.aggregate(c, tf.seconds) else c)
     }
 
+    /** Hourly candles for the rolling 24h stats: Kraken, then Coinbase, then Bitstamp. */
+    suspend fun hourly(): List<Candle> = withContext(Dispatchers.IO) {
+        try { return@withContext Market.parseKrakenOhlc(httpGet(Market.KRAKEN_HOURLY)) } catch (e: Exception) { }
+        try { return@withContext Market.parseCoinbase(httpGet(Market.COINBASE_HOURLY)) } catch (e: Exception) { }
+        try { Market.parseBitstamp(httpGet(Market.BITSTAMP_HOURLY)) } catch (e: Exception) { emptyList() }
+    }
+
     suspend fun ticker(): Ticker? = withContext(Dispatchers.IO) { try { Market.parseKrakenTicker(httpGet(Market.KRAKEN_TICKER)) } catch (e: Exception) { null } }
 }

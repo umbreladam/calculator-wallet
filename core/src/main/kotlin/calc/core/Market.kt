@@ -6,8 +6,13 @@ import org.json.JSONObject
 /** One OHLCV candle. [t] is the open time in unix seconds. */
 data class Candle(val t: Long, val o: Double, val h: Double, val l: Double, val c: Double, val v: Double)
 
-data class Ticker(val last: Double, val open24: Double, val high24: Double, val low24: Double, val vol24: Double) {
-    val changePct get() = if (open24 > 0) (last - open24) / open24 * 100 else 0.0
+/**
+ * 24h stats. [high24]/[low24]/[vol24] are rolling 24h windows. [dayOpen] is Kraken's "o" (today's 00:00 UTC open) and is
+ * NOT used for the change; [ref24] is the open of the hourly candle starting 24h ago, set from OHLC data.
+ */
+data class Ticker(val last: Double, val dayOpen: Double, val high24: Double, val low24: Double, val vol24: Double, val ref24: Double? = null) {
+    /** Rolling 24h change in %, or null until the 24h-ago reference is known. */
+    val changePct: Double? get() = ref24?.takeIf { it > 0 }?.let { (last - it) / it * 100 }
 }
 
 /** Chart timeframes. [kraken] is the Kraken interval in minutes; [group] merges that many candles (Kraken has no 8h). */
@@ -58,6 +63,24 @@ object Market {
         val a = JSONObject(body).getJSONObject("data").getJSONArray("ohlc")
         return (0 until a.length()).map { i -> val c = a.getJSONObject(i)
             Candle(c.getString("timestamp").toLong(), c.getString("open").toDouble(), c.getString("high").toDouble(), c.getString("low").toDouble(), c.getString("close").toDouble(), c.getString("volume").toDouble()) }.sortedBy { it.t }
+    }
+
+    const val KRAKEN_HOURLY = "https://api.kraken.com/0/public/OHLC?pair=XBTUSD&interval=60"
+    const val COINBASE_HOURLY = "https://api.exchange.coinbase.com/products/BTC-USD/candles?granularity=3600"
+    const val BITSTAMP_HOURLY = "https://www.bitstamp.net/api/v2/ohlc/btcusd/?limit=48&step=3600"
+
+    /** Open of the hourly candle that starts 24h before [nowSec] (the first one at or after that hour). */
+    fun ref24(hourly: List<Candle>, nowSec: Long): Double? {
+        val start = (nowSec - 86400) / 3600 * 3600
+        return hourly.sortedBy { it.t }.firstOrNull { it.t >= start && it.t <= start + 3600 }?.o
+    }
+
+    /** Rolling 24h ticker built from hourly candles (used when the Kraken ticker is unavailable). */
+    fun rolling24(hourly: List<Candle>, nowSec: Long, last: Double): Ticker? {
+        val start = (nowSec - 86400) / 3600 * 3600
+        val w = hourly.filter { it.t >= start }
+        if (w.isEmpty()) return null
+        return Ticker(last, w.first().o, maxOf(w.maxOf { it.h }, last), minOf(w.minOf { it.l }, last), w.sumOf { it.v }, ref24(hourly, nowSec))
     }
 
     /** Merge candles into buckets of [seconds] aligned to the epoch (e.g. 4h -> 8h). */

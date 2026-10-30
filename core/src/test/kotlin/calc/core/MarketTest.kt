@@ -12,7 +12,7 @@ class MarketTest {
     @Test fun krakenError() { assertThrows(IllegalStateException::class.java) { Market.parseKrakenOhlc("""{"error":["EGeneral:Too many requests"]}""") } }
     @Test fun krakenTicker() {
         val t = Market.parseKrakenTicker("""{"error":[],"result":{"XXBTZUSD":{"a":["1","1","1"],"c":["110.0","0.1"],"v":["5","20.5"],"h":["111","120"],"l":["99","80"],"o":"100.0"}}}""")
-        assertEquals(110.0, t.last, 0.0); assertEquals(120.0, t.high24, 0.0); assertEquals(80.0, t.low24, 0.0); assertEquals(20.5, t.vol24, 0.0); assertEquals(10.0, t.changePct, 1e-9)
+        assertEquals(110.0, t.last, 0.0); assertEquals(120.0, t.high24, 0.0); assertEquals(80.0, t.low24, 0.0); assertEquals(20.5, t.vol24, 0.0); assertNull(t.changePct)
     }
     @Test fun coinbaseAndBitstamp() {
         val cb = Market.parseCoinbase("[[120,1,4,2,3,5],[60,1,4,2,3,6]]")
@@ -32,4 +32,18 @@ class MarketTest {
         val n = Market.withLive(c, 1.2, 65, 60); assertEquals(2, n.size); assertEquals(60L, n.last().t)
     }
     @Test fun sma() { assertEquals(listOf(null, 1.5, 2.5), Market.sma(listOf(1.0, 2.0, 3.0), 2)) }
+    @Test fun rolling24hChange() {
+        val now = 1_700_000_000L + 1800 // half past an hour
+        // hourly candles covering the last 30h; open of each = 1000 + hour index
+        val h0 = (now - 30 * 3600) / 3600 * 3600
+        val hourly = (0 until 31).map { i -> Candle(h0 + i * 3600, 1000.0 + i, 1010.0 + i, 990.0 + i, 1000.5 + i, 1.0) }
+        val start = (now - 86400) / 3600 * 3600
+        val ref = Market.ref24(hourly, now)!!
+        assertEquals(1000.0 + (start - h0) / 3600, ref, 0.0)
+        val t = Market.parseKrakenTicker("""{"error":[],"result":{"X":{"c":["1100","1"],"v":["1","2"],"h":["1","1200"],"l":["1","900"],"o":"1050"}}}""").copy(ref24 = ref)
+        assertEquals((1100 - ref) / ref * 100, t.changePct!!, 1e-9)   // not based on the 00:00 UTC "o"
+        val r = Market.rolling24(hourly, now, 1100.0)!!
+        assertEquals(ref, r.ref24!!, 0.0); assertEquals(25.0, r.vol24, 0.0); assertEquals(1100.0, r.high24, 0.0); assertEquals(990.0 + (start - h0) / 3600, r.low24, 0.0)
+        assertNull(Market.ref24(hourly.drop(10), now))
+    }
 }
